@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLD Ops — Integrated Dashboard</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f4f6f8; color: #1a1a2e; font-family: system-ui, -apple-system, sans-serif; font-size: 13px; line-height: 1.5; padding-top: 40px; }
+
+/* ===== HARMONY NAVBAR MOCK ===== */
+.harmony-navbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+  background: #303041; color: #fff; height: 40px;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+}
+.harmony-navbar .nav-left { display: flex; align-items: center; gap: 12px; }
+.harmony-navbar .nav-left .app-title { color: #fff; text-decoration: none; font-size: 14px; font-weight: 700; }
+.harmony-navbar .nav-left .breadcrumb { color: #f99829; font-size: 13px; }
+.harmony-navbar .nav-right { display: flex; align-items: center; gap: 12px; }
+.harmony-navbar .nav-right .h-logo {
+  width: 24px; height: 24px; background: #f99829; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; color: #303041;
+}
+
+/* ===== SIDEBAR + LAYOUT ===== */
+.app-layout { display: flex; min-height: calc(100vh - 40px); }
+.sidebar {
+  width: 240px; background: #1e1e2a; border-right: none;
+  padding: 0; flex-shrink: 0; position: sticky; top: 40px; height: calc(100vh - 40px); overflow-y: auto;
+}
+.sidebar-brand {
+  display: flex; align-items: center; gap: 12px; padding: 20px 18px 18px;
+}
+.sidebar-brand .brand-icon {
+  width: 36px; height: 36px; border-radius: 10px; background: #a08050;
+  display: flex; align-items: center; justify-content: center; font-size: 16px; color: #fff;
+}
+.sidebar-brand .brand-text { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: 0.3px; }
+.sidebar-section { margin-bottom: 0; }
+.sidebar-section-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+  color: #7a7a8a; font-weight: 500; padding: 20px 18px 8px; margin-bottom: 0;
+}
+.sidebar-item {
+  display: flex; align-items: center; padding: 10px 18px; font-size: 13px; color: #c8c8d0;
+  cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; text-decoration: none; gap: 12px;
+}
+.sidebar-item:hover { background: rgba(255,255,255,0.04); color: #fff; }
+.sidebar-item .icon { font-size: 15px; width: 22px; text-align: center; flex-shrink: 0; }
+.sidebar-item .chevron { margin-left: auto; font-size: 11px; color: #7a7a8a; }
+.sidebar-item.disabled { opacity: 0.55; cursor: default; }
+.sidebar-item.disabled:hover { background: transparent; color: #c8c8d0; }
+.sidebar-sub { padding-left: 0; }
+.sidebar-sub .sidebar-item { font-size: 13px; padding: 8px 18px 8px 52px; color: #a0a0b0; }
+.sidebar-sub .sidebar-item:hover { color: #fff; background: rgba(255,255,255,0.04); }
+.sidebar-sub .sidebar-item.active-sub {
+  background: linear-gradient(90deg, rgba(37,99,235,0.25), rgba(37,99,235,0.08));
+  color: #fff; font-weight: 600;
+}
+
+/* Sidebar active states — amber/gold accent matching production */
+#page-matchmaker:checked ~ .app-layout .sidebar .si-matchmaker,
+#page-platform:checked ~ .app-layout .sidebar .si-platform,
+#page-heatmap:checked ~ .app-layout .sidebar .si-heatmap,
+#page-queue:checked ~ .app-layout .sidebar .si-queue,
+#page-capacity:checked ~ .app-layout .sidebar .si-capacity {
+  background: linear-gradient(90deg, rgba(37,99,235,0.25), rgba(37,99,235,0.08));
+  color: #fff; border-left-color: transparent; font-weight: 600;
+}
+
+/* Collapsible section toggle (CSS-only) */
+.sidebar-toggle { display: none; }
+.sidebar-toggle-label {
+  display: flex; align-items: center; padding: 10px 18px; font-size: 13px; color: #c8c8d0;
+  cursor: pointer; transition: all 0.15s; gap: 12px; font-weight: 500;
+}
+.sidebar-toggle-label:hover { background: rgba(255,255,255,0.04); color: #fff; }
+.sidebar-toggle-label .icon { font-size: 15px; width: 22px; text-align: center; flex-shrink: 0; }
+.sidebar-toggle-label .arrow { margin-left: auto; font-size: 11px; transition: transform 0.2s; color: #7a7a8a; }
+.sidebar-toggle-label.active-parent {
+  background: linear-gradient(90deg, rgba(160,128,80,0.3), rgba(160,128,80,0.08));
+  color: #e5c07b; border-radius: 0;
+}
+.sidebar-toggle-label.active-parent .arrow { color: #e5c07b; }
+.sidebar-collapse { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+.sidebar-toggle:checked + .sidebar-toggle-label + .sidebar-collapse { max-height: 600px; }
+.sidebar-toggle:checked + .sidebar-toggle-label .arrow { transform: rotate(90deg); }
+
+.main-content { flex: 1; padding: 20px 24px; overflow-x: hidden; }
+
+/* ===== NAV TABS (CSS-only page switching) ===== */
+input[name="page"] { display: none; }
+.page { display: none; }
+#page-matchmaker:checked ~ .app-layout .page-matchmaker,
+#page-platform:checked ~ .app-layout .page-platform,
+#page-heatmap:checked ~ .app-layout .page-heatmap,
+#page-queue:checked ~ .app-layout .page-queue,
+#page-capacity:checked ~ .app-layout .page-capacity { display: block; }
+
+/* Sidebar active states */
+#page-matchmaker:checked ~ .app-layout .sidebar .si-matchmaker,
+#page-platform:checked ~ .app-layout .sidebar .si-platform,
+#page-heatmap:checked ~ .app-layout .sidebar .si-heatmap,
+#page-queue:checked ~ .app-layout .sidebar .si-queue,
+#page-capacity:checked ~ .app-layout .sidebar .si-capacity { background: #eff6ff; color: #2563eb; border-left-color: #2563eb; font-weight: 600; }
+
+/* ===== SUB-TABS (within matchmaker) ===== */
+input[name="mtab"] { display: none; }
+.mtab-bar { display: flex; gap: 0; margin-bottom: 20px; background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; }
+.mtab-bar label { flex: 1; text-align: center; padding: 11px 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; color: #6b7280; border-right: 1px solid #e5e7eb; }
+.mtab-bar label:last-child { border-right: none; }
+.mtab-bar label:hover { background: #f0f4ff; color: #2563eb; }
+.mtab-page { display: none; }
+
+#mtab-search:checked ~ .mtab-bar label[for="mtab-search"],
+#mtab-results:checked ~ .mtab-bar label[for="mtab-results"],
+#mtab-intake:checked ~ .mtab-bar label[for="mtab-intake"],
+#mtab-roster:checked ~ .mtab-bar label[for="mtab-roster"],
+#mtab-legend:checked ~ .mtab-bar label[for="mtab-legend"] { background: #2563eb; color: #fff; }
+
+#mtab-search:checked ~ .mpage-search,
+#mtab-results:checked ~ .mpage-results,
+#mtab-intake:checked ~ .mpage-intake,
+#mtab-roster:checked ~ .mpage-roster,
+#mtab-legend:checked ~ .mpage-legend { display: block; }
+
+/* ===== COMMON COMPONENTS ===== */
+.screen-title { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+.screen-subtitle { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+
+/* KPI CARDS */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.kpi-row-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+.kpi-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; }
+.kpi-card.alert { border-color: #fca5a5; }
+.kpi-card.warn { border-color: #fdba74; }
+.kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; margin-bottom: 6px; }
+.kpi-value { font-size: 26px; font-weight: 700; font-family: 'SF Mono', 'Cascadia Code', monospace; color: #1a1a2e; }
+.kpi-sub { font-size: 11px; color: #6b7280; margin-top: 4px; }
+.kpi-delta { font-size: 11px; margin-top: 2px; }
+.kpi-delta.pos { color: #059669; }
+.kpi-delta.neg { color: #dc2626; }
+.kpi-delta.warn-text { color: #d97706; }
+
+/* PANELS & SECTIONS */
+.panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+.panel-title { font-size: 12px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.section { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.section-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* TABLES */
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead th { text-align: left; color: #6b7280; font-weight: 600; padding: 8px 10px; border-bottom: 2px solid #e5e7eb; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+tbody td { padding: 7px 10px; color: #374151; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+tbody tr:hover td { background: #f0f4ff; }
+
+/* BADGES */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
+.b-red { background: #fee2e2; color: #991b1b; }
+.b-yellow { background: #fef3c7; color: #92400e; }
+.b-green { background: #d1fae5; color: #065f46; }
+.b-blue { background: #dbeafe; color: #1e40af; }
+.b-purple { background: #ede9fe; color: #5b21b6; }
+.b-gray { background: #f3f4f6; color: #4b5563; }
+.b-teal { background: #ccfbf1; color: #115e59; }
+
+/* FORM STYLING */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-group { margin-bottom: 0; }
+.form-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; font-weight: 600; margin-bottom: 6px; }
+.form-hint { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+.form-select, .form-input, .form-textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+  font-size: 13px; font-family: system-ui, sans-serif; background: #fff; color: #1a1a2e;
+  transition: border-color 0.15s;
+}
+.form-textarea { min-height: 72px; resize: vertical; }
+.form-select:focus, .form-input:focus, .form-textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.form-required { color: #dc2626; }
+
+/* MATCH CARDS */
+.match-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 12px; display: grid; grid-template-columns: 40px 50px 1fr 200px; gap: 16px; align-items: center; transition: all 0.15s; }
+.match-card:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,0.08); }
+.match-rank { font-size: 28px; font-weight: 800; font-family: 'SF Mono', monospace; color: #d1d5db; text-align: center; }
+.match-rank.top { color: #059669; }
+.match-name { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.match-meta { font-size: 12px; color: #6b7280; line-height: 1.6; }
+.match-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+
+/* SCORE BARS */
+.score-bar-bg { width: 100%; height: 20px; background: #f0f0f0; border-radius: 10px; overflow: hidden; position: relative; }
+.score-bar-fill { height: 100%; border-radius: 10px; }
+.score-bar-text { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 10px; font-weight: 700; color: #374151; font-family: monospace; }
+.fill-high { background: linear-gradient(90deg, #34d399, #059669); }
+.fill-mid { background: linear-gradient(90deg, #60a5fa, #2563eb); }
+.fill-low { background: linear-gradient(90deg, #fbbf24, #d97706); }
+
+/* UTIL MINI BAR */
+.util-mini-bg { width: 70px; height: 14px; background: #f0f0f0; border-radius: 7px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 4px; }
+.util-mini-fill { height: 100%; border-radius: 7px; }
+
+/* RESULT HEADER */
+.result-header { background: linear-gradient(135deg, #eff6ff, #e0f2fe); border: 1px solid #bfdbfe; border-radius: 10px; padding: 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+.rh-title { font-size: 14px; font-weight: 700; color: #1e40af; }
+.rh-sub { font-size: 12px; color: #3b82f6; margin-top: 2px; }
+.rh-badge { font-size: 32px; font-weight: 800; font-family: monospace; color: #059669; }
+
+/* REQUEST CARDS */
+.req-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 12px; display: grid; grid-template-columns: 60px 1fr 160px; gap: 14px; align-items: center; transition: all 0.15s; }
+.req-card:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,0.06); }
+.req-id { font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 700; color: #2563eb; text-align: center; }
+.req-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.req-meta { font-size: 12px; color: #374151; line-height: 1.6; }
+.req-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.req-status-col { text-align: right; }
+
+/* LEGEND / WORKFLOW */
+.legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.legend-card { border-radius: 10px; padding: 16px; border: 1px solid #e5e7eb; background: #fff; }
+.legend-card .icon { font-size: 20px; margin-bottom: 6px; }
+.legend-card .title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.legend-card .desc { font-size: 11px; color: #6b7280; line-height: 1.5; }
+.legend-card .rule { font-size: 10px; font-family: monospace; color: #2563eb; margin-top: 6px; padding: 4px 8px; background: #eff6ff; border-radius: 4px; display: inline-block; }
+
+/* PIPELINE */
+.pipeline { display: flex; align-items: flex-start; gap: 0; margin: 20px 0; flex-wrap: wrap; justify-content: center; }
+.pipe-step { text-align: center; flex: 1; min-width: 100px; }
+.pipe-circle { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 6px; font-size: 18px; border: 3px solid; }
+.pipe-circle.c-gray { border-color: #6b7280; background: #f9fafb; }
+.pipe-circle.c-yellow { border-color: #d97706; background: #fffbeb; }
+.pipe-circle.c-blue { border-color: #2563eb; background: #eff6ff; }
+.pipe-circle.c-green { border-color: #059669; background: #f0fdf4; }
+.pipe-circle.c-dark { border-color: #6b7280; background: #f3f4f6; }
+.pipe-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+.pipe-desc { font-size: 9px; color: #6b7280; line-height: 1.4; max-width: 110px; margin: 0 auto; }
+.pipe-arrow { display: flex; align-items: center; padding-top: 12px; color: #d1d5db; font-size: 18px; font-weight: 700; }
+
+/* FORMULA BLOCK */
+.formula-block { background: #f8f9fb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; font-family: 'SF Mono', monospace; font-size: 12px; line-height: 2; color: #374151; }
+.formula-hl { color: #2563eb; font-weight: 700; }
+
+/* FILTER BAR */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.filter-pill { background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 14px; font-size: 11px; color: #374151; display: flex; align-items: center; gap: 4px; }
+.filter-pill::after { content: "▾"; font-size: 9px; color: #2563eb; }
+
+/* HEATMAP */
+.heatmap-container { overflow-x: auto; }
+.heatmap { border-collapse: separate; border-spacing: 2px; }
+.heatmap th { font-size: 10px; padding: 6px 8px; text-align: center; white-space: nowrap; }
+.heatmap th.row-head { text-align: left; min-width: 180px; }
+.heatmap td { text-align: center; width: 68px; height: 30px; border-radius: 4px; font-family: monospace; font-weight: 600; font-size: 12px; border: none; }
+.heatmap .group-header td { background: transparent !important; color: #2563eb; font-weight: 700; font-size: 11px; text-align: left; padding-left: 4px; letter-spacing: 0.3px; }
+.p0 { background: #f3f4f6; color: #9ca3af; }
+.p1 { background: #fee2e2; color: #991b1b; }
+.p2 { background: #fef3c7; color: #92400e; }
+.p3 { background: #d1fae5; color: #065f46; }
+.p4 { background: #bbf7d0; color: #14532d; }
+
+/* QUEUE CARDS */
+.queue-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.queue-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; }
+.queue-card.status-healthy { border-left: 3px solid #059669; }
+.queue-card.status-at-risk { border-left: 3px solid #d97706; }
+.queue-card.status-dry { border-left: 3px solid #dc2626; }
+.queue-card.status-overloaded { border-left: 3px solid #991b1b; background: #fef2f2; }
+.queue-name { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.queue-depth { font-size: 24px; font-weight: 700; font-family: monospace; color: #1a1a2e; }
+.queue-bar { height: 6px; background: #f0f0f0; border-radius: 3px; margin: 8px 0; overflow: hidden; }
+.queue-bar-fill { height: 100%; border-radius: 3px; }
+.queue-bar-fill.green { background: linear-gradient(90deg, #34d399, #059669); }
+.queue-bar-fill.yellow { background: linear-gradient(90deg, #fbbf24, #d97706); }
+.queue-bar-fill.red { background: linear-gradient(90deg, #f87171, #dc2626); }
+.queue-meta { font-size: 11px; color: #6b7280; line-height: 1.8; }
+.queue-meta strong { color: #374151; }
+
+/* CAPACITY BARS */
+.cap-bar-container { margin-bottom: 10px; }
+.cap-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; margin-bottom: 3px; }
+.cap-bar { height: 20px; background: #f0f0f0; border-radius: 4px; overflow: hidden; position: relative; display: flex; }
+.cap-bar .fte-fill { height: 100%; background: #2563eb; }
+.cap-bar .fl-fill { height: 100%; background: #d97706; }
+.cap-bar .req-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #1a1a2e; }
+
+/* ALERT BOX */
+.alert-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+.alert-box .alert-header { font-size: 12px; font-weight: 700; color: #991b1b; margin-bottom: 8px; }
+.alert-box .alert-body { font-size: 12px; color: #374151; }
+.rec-table { margin-top: 8px; }
+.rec-table td { padding: 5px 8px; font-size: 11px; }
+
+/* UTILITY */
+.text-green { color: #059669; }
+.text-red { color: #dc2626; }
+.text-orange { color: #d97706; }
+.text-blue { color: #2563eb; }
+.text-muted { color: #6b7280; }
+.mono { font-family: 'SF Mono', 'Cascadia Code', monospace; }
+.fw-700 { font-weight: 700; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.mt-12 { margin-top: 12px; }
+.badge-fte { background: #dbeafe; color: #1e40af; }
+.badge-fl { background: #fef3c7; color: #92400e; }
+
+/* ANIMATION */
+@media (prefers-reduced-motion: no-preference) {
+  .section, .panel, .kpi-card, .match-card, .queue-card { animation: fadeUp 0.4s ease-out both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
+
+/* RESPONSIVE */
+@media (max-width: 1100px) {
+  .sidebar { width: 180px; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .kpi-row-5 { grid-template-columns: repeat(3, 1fr); }
+  .queue-grid { grid-template-columns: repeat(2, 1fr); }
+  .match-card { grid-template-columns: 30px 40px 1fr; }
+  .match-card > div:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .form-grid { grid-template-columns: 1fr; }
+  .legend-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HARMONY NAVBAR MOCK ===== -->
+<div class="harmony-navbar">
+  <div class="nav-left">
+    <span class="app-title">Admin Dashboard - Time Tracking</span>
+  </div>
+  <div class="nav-right">
+    <div class="h-logo">H</div>
+  </div>
+</div>
+
+<!-- ===== PAGE RADIOS ===== -->
+<input type="radio" name="page" id="page-matchmaker" checked>
+<input type="radio" name="page" id="page-platform">
+<input type="radio" name="page" id="page-heatmap">
+<input type="radio" name="page" id="page-queue">
+<input type="radio" name="page" id="page-capacity">
+
+<!-- ===== APP LAYOUT ===== -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <!-- Brand -->
+    <div class="sidebar-brand">
+      <div class="brand-icon">⊞</div>
+      <div class="brand-text">MLD Ops</div>
+    </div>
+
+    <!-- NAVIGATION section -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Navigation</div>
+      <div class="sidebar-item disabled"><span class="icon">🏠</span> Home</div>
+
+      <!-- Associate -->
+      <input type="checkbox" id="tog-associate" class="sidebar-toggle">
+      <label for="tog-associate" class="sidebar-toggle-label"><span class="icon">👤</span> Associate <span class="arrow">›</span></label>
+      <div class="sidebar-collapse">
+        <div class="sidebar-sub">
+          <div class="sidebar-item disabled">Work Hour</div>
+        </div>
+      </div>
+
+      <!-- Manager (expanded, gold highlight) -->
+      <input type="checkbox" id="tog-manager" class="sidebar-toggle" checked>
+      <label for="tog-manager" class="sidebar-toggle-label active-parent"><span class="icon">👥</span> Manager <span class="arrow">›</span></label>
+      <div class="sidebar-collapse">
+        <div class="sidebar-sub">
+          <div class="sidebar-item disabled">Work Hour</div>
+          <div class="sidebar-item disabled">Upload Data</div>
+          <div class="sidebar-item disabled">Productivity</div>
+          <div class="sidebar-item disabled">Utilisation Dashboard</div>
+          <div class="sidebar-item disabled active-sub">Time Tracker Report</div>
+          <div class="sidebar-item disabled">Timestamp Update</div>
+          <div class="sidebar-item disabled">Review Permission</div>
+          <div class="sidebar-item disabled">Manager Mapping</div>
+          <div class="sidebar-item disabled">Attendance Report</div>
+          <div class="sidebar-item disabled">Ideas</div>
+        </div>
+      </div>
+
+      <!-- Smart Tool -->
+      <input type="checkbox" id="tog-smart" class="sidebar-toggle">
+      <label for="tog-smart" class="sidebar-toggle-label"><span class="icon">📦</span> Smart Tool <span class="arrow">›</span></label>
+      <div class="sidebar-collapse">
+        <div class="sidebar-sub">
+          <div class="sidebar-item disabled">Forecasting</div>
+          <div class="sidebar-item disabled">Scheduling</div>
+        </div>
+      </div>
+
+      <!-- Resource Management (expanded — our section) -->
+      <input type="checkbox" id="tog-resource" class="sidebar-toggle" checked>
+      <label for="tog-resource" class="sidebar-toggle-label"><span class="icon">⚙️</span> Resource Management <span class="arrow">›</span></label>
+      <div class="sidebar-collapse">
+        <div class="sidebar-sub">
+          <label for="page-matchmaker" class="sidebar-item si-matchmaker">🔍 Resource Matchmaker</label>
+          <label for="page-platform" class="sidebar-item si-platform">📊 Resource Platform</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPERATIONS section -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Operations</div>
+      <label for="page-heatmap" class="sidebar-item si-heatmap"><span class="icon">🗺</span> Skills Heatmap</label>
+      <label for="page-queue" class="sidebar-item si-queue"><span class="icon">📡</span> Queue Command</label>
+      <label for="page-capacity" class="sidebar-item si-capacity"><span class="icon">📈</span> Capacity Planning</label>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- PAGE: RESOURCE MATCHMAKER                                       -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="page page-matchmaker">
+  <div class="screen-title">🔍 Resource Matchmaker</div>
+  <div class="screen-subtitle">Proactive Headcount Planning & Resource Allocation — Find the right people for the right process, instantly.</div>
+
+  <!-- SUB-TAB RADIOS -->
+  <input type="radio" name="mtab" id="mtab-search" checked>
+  <input type="radio" name="mtab" id="mtab-results">
+  <input type="radio" name="mtab" id="mtab-intake">
+  <input type="radio" name="mtab" id="mtab-roster">
+  <input type="radio" name="mtab" id="mtab-legend">
+
+  <!-- SUB-TAB BAR -->
+  <div class="mtab-bar">
+    <label for="mtab-search">🔍 Search & Results</label>
+    <label for="mtab-results">📋 History</label>
+    <label for="mtab-intake">📝 Intake Form</label>
+    <label for="mtab-roster">👥 Roster</label>
+    <label for="mtab-legend">📐 Methodology</label>
+  </div>
+
+  <!-- ===== SEARCH TAB ===== -->
+  <div class="mtab-page mpage-search">
+    <div class="section">
+      <div class="section-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        Resource Search Filters
+      </div>
+      <div class="form-group" style="margin-bottom:16px;">
+        <div class="form-label">Process / Vertical</div>
+        <select class="form-select">
+          <option value="">— All Processes —</option>
+          <option>Image QA</option>
+          <option>Photo Retouch</option>
+          <option selected>BG Removal</option>
+          <option>Color Correction</option>
+          <option>Metadata Audit</option>
+          <option>Content Validation</option>
+        </select>
+        <div class="form-hint">Select the process you need resources for</div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <div class="form-label">Headcount Needed</div>
+          <input type="number" class="form-input" value="2" min="1">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Minimum Proficiency Level</div>
+          <select class="form-select"><option>Any Level</option><option>Developing or above</option><option selected>Proficient or above</option><option>Expert only</option></select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Date Range</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="date" class="form-input" value="2026-05-12">
+            <span style="font-size:12px; color:#6b7280;">to</span>
+            <input type="date" class="form-input" value="2026-06-06">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Hours Per Day Per Resource</div>
+          <select class="form-select"><option>2 hrs/day</option><option>4 hrs/day</option><option selected>6 hrs/day</option><option>8 hrs/day (Full Time)</option></select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Priority</div>
+          <select class="form-select"><option selected>P1 — Critical (SLA at risk)</option><option>P2 — High (within 48 hrs)</option><option>P3 — Standard (within 1 week)</option></select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Include Cross-Skilled?</div>
+          <select class="form-select"><option selected>Yes — include secondary skills</option><option>No — primary skill only</option></select>
+        </div>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:12px; align-items:center;">
+        <div style="padding:12px 28px; background:#2563eb; color:#fff; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition: background 0.15s;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          Find Resource Match
+        </div>
+        <span style="font-size:12px; color:#6b7280;">Searches across all teams for best-fit candidates</span>
+      </div>
+    </div>
+
+    <!-- INLINE RESULTS (appear after search) -->
+    <div style="margin-top:4px; padding:12px 16px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; font-size:12px; color:#065f46; line-height:1.6; margin-bottom:16px;">
+      <strong>💡 Query Executed:</strong> "Find <strong>2 resources</strong> for <strong>Background Removal</strong>, minimum <strong>Proficient</strong> level, <strong>6 hrs/day</strong> for <strong>Wk 20-23</strong>, Priority <strong>P1</strong>."
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Total Resources</div><div class="kpi-value text-blue">19</div><div class="kpi-sub">Across 3 teams</div></div>
+      <div class="kpi-card"><div class="kpi-label">Currently Available</div><div class="kpi-value text-green">7</div><div class="kpi-sub">Below 85% weighted util</div></div>
+      <div class="kpi-card"><div class="kpi-label">BG Removal Qualified</div><div class="kpi-value" style="color:#7c3aed;">7</div><div class="kpi-sub">Primary + Secondary skills</div></div>
+      <div class="kpi-card"><div class="kpi-label">Proficient+ in BG Removal</div><div class="kpi-value text-blue">5</div><div class="kpi-sub">Meeting min. proficiency filter</div></div>
+    </div>
+
+    <!-- MATCH RESULTS INLINE -->
+    <div class="result-header">
+      <div>
+        <div class="rh-title">🎯 Matchmaker Results — Background Removal × Proficient+ × ≤85% Util</div>
+        <div class="rh-sub">2 resources needed • 6 hrs/day • Wk 20–23 • P1 Critical</div>
+      </div>
+      <div style="text-align:right;"><div class="rh-badge">5</div><div style="font-size:11px; color:#059669; font-weight:600;">Candidates Found</div></div>
+    </div>
+
+    <!-- MATCH #1 -->
+    <div class="match-card">
+      <div style="text-align:center;"><input type="checkbox" style="width:18px; height:18px; cursor:pointer; accent-color:#2563eb;" checked></div>
+      <div class="match-rank top">#1</div>
+      <div>
+        <div class="match-name">Alex Babaran (gioalbab)</div>
+        <div class="match-meta">
+          <strong>ML Audits</strong> · Manager: Jen · L4<br>
+          Primary: <strong>Background Removal</strong> (Proficient) · Secondary: Color Correction (Developing)<br>
+          Weighted Util: <span class="util-mini-bg"><span class="util-mini-fill" style="width:66%; background:#059669;"></span></span> <strong style="color:#059669;">66.0%</strong> · Available: <strong>13.6 hrs/wk</strong>
+        </div>
+        <div class="match-tags"><span class="badge b-green">🟢 Optimal Util</span><span class="badge b-green">Primary Skill Match</span><span class="badge b-blue">13.6 hrs buffer</span></div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Match Score</div>
+        <div class="score-bar-bg"><div class="score-bar-fill fill-high" style="width:94%;"></div><div class="score-bar-text">94 / 100</div></div>
+        <div style="font-size:10px; color:#6b7280; margin-top:4px;">Prof: 32 + Avail: 35 + Cross: 17 + Prox: 10</div>
+      </div>
+    </div>
+
+    <!-- MATCH #2 -->
+    <div class="match-card">
+      <div style="text-align:center;"><input type="checkbox" style="width:18px; height:18px; cursor:pointer; accent-color:#2563eb;" checked></div>
+      <div class="match-rank top">#2</div>
+      <div>
+        <div class="match-name">Jam Mercado (jamiljez)</div>
+        <div class="match-meta">
+          <strong>ML Audits</strong> · Manager: Jen · L3<br>
+          Primary: <strong>Background Removal</strong> (Proficient) · Secondary: Photo Retouch (Developing)<br>
+          Weighted Util: <span class="util-mini-bg"><span class="util-mini-fill" style="width:68%; background:#2563eb;"></span></span> <strong style="color:#2563eb;">68.0%</strong> · Available: <strong>12.8 hrs/wk</strong>
+        </div>
+        <div class="match-tags"><span class="badge b-blue">🔵 Available</span><span class="badge b-green">Primary Skill Match</span><span class="badge b-blue">12.8 hrs buffer</span></div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Match Score</div>
+        <div class="score-bar-bg"><div class="score-bar-fill fill-high" style="width:89%;"></div><div class="score-bar-text">89 / 100</div></div>
+        <div style="font-size:10px; color:#6b7280; margin-top:4px;">Prof: 32 + Avail: 33 + Cross: 14 + Prox: 10</div>
+      </div>
+    </div>
+
+    <!-- MATCH #3 -->
+    <div class="match-card">
+      <div style="text-align:center;"><input type="checkbox" style="width:18px; height:18px; cursor:pointer; accent-color:#2563eb;"></div>
+      <div class="match-rank">#3</div>
+      <div>
+        <div class="match-name">Aria Limos (arialms)</div>
+        <div class="match-meta">
+          <strong>ML Audits</strong> · Manager: Jen · L4<br>
+          Primary: Color Correction (Expert) · Secondary: <strong>Background Removal</strong> (Proficient)<br>
+          Weighted Util: <span class="util-mini-bg"><span class="util-mini-fill" style="width:100%; background:#dc2626;"></span></span> <strong style="color:#dc2626;">103.5%</strong> · Available: <strong>0 hrs/wk</strong>
+        </div>
+        <div class="match-tags"><span class="badge b-red">🔴 Overloaded</span><span class="badge b-yellow">Secondary Skill Match</span><span class="badge b-red">No capacity</span></div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Match Score</div>
+        <div class="score-bar-bg"><div class="score-bar-fill fill-low" style="width:52%;"></div><div class="score-bar-text">52 / 100</div></div>
+        <div style="font-size:10px; color:#6b7280; margin-top:4px;">Prof: 24 + Avail: 0 + Cross: 18 + Prox: 10</div>
+      </div>
+    </div>
+
+    <!-- MATCH #4 -->
+    <div class="match-card">
+      <div style="text-align:center;"><input type="checkbox" style="width:18px; height:18px; cursor:pointer; accent-color:#2563eb;"></div>
+      <div class="match-rank">#4</div>
+      <div>
+        <div class="match-name">Toby Vigal (tobvigal)</div>
+        <div class="match-meta">
+          <strong>ML Audits</strong> · Manager: Jen · L4<br>
+          Primary: Photo Retouch (Expert) · Secondary: Color Correction → BG Removal (Proficient via cross-path)<br>
+          Weighted Util: <span class="util-mini-bg"><span class="util-mini-fill" style="width:95%; background:#d97706;"></span></span> <strong style="color:#d97706;">95.0%</strong> · Available: <strong>2.0 hrs/wk</strong>
+        </div>
+        <div class="match-tags"><span class="badge b-yellow">🟡 High Load</span><span class="badge b-gray">Cross-Path Skill</span><span class="badge b-yellow">2 hrs only</span></div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Match Score</div>
+        <div class="score-bar-bg"><div class="score-bar-fill fill-low" style="width:41%;"></div><div class="score-bar-text">41 / 100</div></div>
+        <div style="font-size:10px; color:#6b7280; margin-top:4px;">Prof: 16 + Avail: 5 + Cross: 12 + Prox: 8</div>
+      </div>
+    </div>
+
+    <!-- MATCH #5 -->
+    <div class="match-card">
+      <div style="text-align:center;"><input type="checkbox" style="width:18px; height:18px; cursor:pointer; accent-color:#2563eb;"></div>
+      <div class="match-rank">#5</div>
+      <div>
+        <div class="match-name">Danielle Aragon (aragonrd)</div>
+        <div class="match-meta">
+          <strong>ML Retouch</strong> · Manager: Jen · L3<br>
+          Primary: Photo Retouch (Expert) · Secondary: <strong>Background Removal</strong> (Proficient)<br>
+          Weighted Util: <span class="util-mini-bg"><span class="util-mini-fill" style="width:92.5%; background:#d97706;"></span></span> <strong style="color:#d97706;">92.5%</strong> · Available: <strong>3.0 hrs/wk</strong>
+        </div>
+        <div class="match-tags"><span class="badge b-yellow">🟡 High Load</span><span class="badge b-yellow">Secondary Skill Match</span><span class="badge b-yellow">3 hrs only</span></div>
+      </div>
+      <div>
+        <div style="font-size:10px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Match Score</div>
+        <div class="score-bar-bg"><div class="score-bar-fill fill-low" style="width:47%;"></div><div class="score-bar-text">47 / 100</div></div>
+        <div style="font-size:10px; color:#6b7280; margin-top:4px;">Prof: 24 + Avail: 7 + Cross: 8 + Prox: 8</div>
+      </div>
+    </div>
+
+    <!-- EXCLUDED -->
+    <div class="section" style="border-left: 3px solid #dc2626;">
+      <div class="section-title" style="color:#dc2626;">❌ Excluded from Results (2)</div>
+      <table>
+        <thead><tr><th>Name</th><th>Reason for Exclusion</th><th>BG Removal Skill</th><th>Weighted Util</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cienna G. (gcienna)</strong></td><td><span class="badge b-red">🔴 Overloaded</span> — 100% raw util, 0 hrs remaining</td><td>Expert (Primary)</td><td class="mono">80.0%</td></tr>
+          <tr><td><strong>Danielle Aragon (aragonrd)</strong></td><td><span class="badge b-yellow">Below Min. Proficiency</span> — Developing level</td><td>Developing (via cross-path)</td><td class="mono text-green">55.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- RECOMMENDATION -->
+    <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:16px;">
+      <div style="font-size:13px; font-weight:700; color:#065f46; margin-bottom:8px;">✅ Matchmaker Recommendation</div>
+      <div style="font-size:12px; color:#065f46; line-height:1.7;">
+        <strong>Deploy Alex Babaran (#1) and Jam Mercado (#2)</strong> — both are primary BG Removal, Proficient level, with 13.6 and 12.8 hrs/wk buffer respectively. Combined: <strong>26.4 hrs/wk of deployable capacity</strong>.<br><br>
+        ⚠️ <strong>Gap Note:</strong> Remaining 33.6 hrs/wk shortfall → submit a formal HC request to secure cross-team resources.
+      </div>
+    </div>
+
+    <!-- SUBMIT WORK REQUEST BUTTON -->
+    <div style="text-align:center; margin-top:20px;">
+      <label for="mtab-intake" style="padding:14px 36px; background:#2563eb; color:#fff; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition: background 0.15s;">
+        📤 Submit Work Request
+      </label>
+      <div style="font-size:11px; color:#6b7280; margin-top:6px;">Opens the HC Request form with selected candidates pre-referenced</div>
+    </div>
+  </div>
+
+  <!-- ===== RESULTS TAB (Summary view / history) ===== -->
+  <div class="mtab-page mpage-results">
+    <div class="section" style="text-align:center; padding:40px 20px;">
+      <div style="font-size:36px; margin-bottom:12px;">📋</div>
+      <div style="font-size:15px; font-weight:700; color:#1a1a2e; margin-bottom:6px;">Search Results History</div>
+      <div style="font-size:12px; color:#6b7280; max-width:480px; margin:0 auto; line-height:1.7;">
+        Match results now appear directly below the Search form for a seamless workflow.<br>
+        Use the <strong>🔍 Search</strong> tab to run a new query and see ranked candidates inline.
+      </div>
+      <div style="margin-top:20px;">
+        <label for="mtab-search" style="padding:10px 24px; background:#2563eb; color:#fff; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-block;">← Go to Search</label>
+      </div>
+
+      <!-- RECENT SEARCHES LOG -->
+      <div style="margin-top:28px; text-align:left; max-width:600px; margin-left:auto; margin-right:auto;">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:#6b7280; font-weight:600; margin-bottom:8px;">Recent Searches</div>
+        <table>
+          <thead><tr><th>Date</th><th>Query</th><th>Matches</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">May 2</td><td>BG Removal · 2 HC · Proficient+ · P1</td><td class="mono">5</td><td><span class="badge b-green">✅ Deployed</span></td></tr>
+            <tr><td class="mono">May 3</td><td>Color Correction · 1 HC · Expert · P1</td><td class="mono">2</td><td><span class="badge b-yellow">🔄 Under Review</span></td></tr>
+            <tr><td class="mono">May 4</td><td>Photo Retouch · 1 HC · Proficient+ · P2</td><td class="mono">3</td><td><span class="badge b-gray">📥 Submitted</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== INTAKE FORM TAB ===== -->
+  <div class="mtab-page mpage-intake">
+    <div class="kpi-row-5">
+      <div class="kpi-card"><div class="kpi-label">Open Requests</div><div class="kpi-value text-orange">4</div><div class="kpi-sub">Pending action</div></div>
+      <div class="kpi-card"><div class="kpi-label">Avg Response Time</div><div class="kpi-value text-blue">6.2 hrs</div><div class="kpi-sub">SLA target: P1=4h, P2=48h</div></div>
+      <div class="kpi-card"><div class="kpi-label">Deployed This Week</div><div class="kpi-value text-green">3</div><div class="kpi-sub">Resources matched & active</div></div>
+      <div class="kpi-card"><div class="kpi-label">SLA Breach Risk</div><div class="kpi-value text-red">1</div><div class="kpi-sub">REQ-004 nearing P1 limit</div></div>
+      <div class="kpi-card"><div class="kpi-label">Capacity Conflicts</div><div class="kpi-value text-orange">2</div><div class="kpi-sub">Flagged for review</div></div>
+    </div>
+
+    <!-- ACTIVE REQUEST QUEUE -->
+    <div class="section">
+      <div class="section-title">📬 Active Request Queue</div>
+
+      <div class="req-card">
+        <div class="req-id">REQ<br>001</div>
+        <div>
+          <div class="req-title">BG Removal — 2 FTEs for Wk 20-23</div>
+          <div class="req-meta">Requestor: <strong>Lian Nadado (iamlian)</strong> · Submitted: May 2, 2026 · 6 hrs/day<br>Matched: Alex Babaran, Jam Mercado · Gap: 33.6 hrs/wk remaining</div>
+          <div class="req-tags"><span class="badge b-red">P1 Critical</span><span class="badge b-blue">Partially Matched</span><span class="badge b-purple">Score: 94, 89</span></div>
+        </div>
+        <div class="req-status-col">
+          <div class="badge b-green" style="font-size:11px; padding:4px 12px;">✅ APPROVED</div>
+          <div style="font-size:10px; color:#6b7280; margin-top:4px;">Approved by Jen · May 3</div>
+          <div style="font-size:10px; color:#059669; margin-top:2px;">Deploying May 12</div>
+        </div>
+      </div>
+
+      <div class="req-card">
+        <div class="req-id">REQ<br>002</div>
+        <div>
+          <div class="req-title">Color Correction — 1 FTE for Wk 21-23</div>
+          <div class="req-meta">Requestor: <strong>Toby Vigal (tobvigal)</strong> · Submitted: May 3, 2026 · 8 hrs/day<br>Reason: Aria Limos at 103.5% weighted — needs relief</div>
+          <div class="req-tags"><span class="badge b-red">P1 Critical</span><span class="badge b-yellow">⚠️ Capacity Conflict</span></div>
+        </div>
+        <div class="req-status-col">
+          <div class="badge b-yellow" style="font-size:11px; padding:4px 12px;">🔄 UNDER REVIEW</div>
+          <div style="font-size:10px; color:#6b7280; margin-top:4px;">Assigned to: Jen</div>
+          <div style="font-size:10px; color:#d97706; margin-top:2px;">SLA: 2.1 hrs remaining</div>
+        </div>
+      </div>
+
+      <div class="req-card">
+        <div class="req-id">REQ<br>003</div>
+        <div>
+          <div class="req-title">Content Validation — 1 FTE (Structural)</div>
+          <div class="req-meta">Requestor: <strong>Matthew Matibag (matmatib)</strong> · Submitted: May 3, 2026 · Full-time<br>Reason: Chronic deficit all 8 forecast weeks. Jam Mercado at 112% weighted.</div>
+          <div class="req-tags"><span class="badge b-red">P1 Critical</span><span class="badge b-teal">Cross-Train Request</span></div>
+        </div>
+        <div class="req-status-col">
+          <div class="badge b-yellow" style="font-size:11px; padding:4px 12px;">🔄 UNDER REVIEW</div>
+          <div style="font-size:10px; color:#6b7280; margin-top:4px;">Assigned to: Jen</div>
+          <div style="font-size:10px; color:#6b7280; margin-top:2px;">SLA: 3.5 hrs remaining</div>
+        </div>
+      </div>
+
+      <div class="req-card" style="opacity:0.65;">
+        <div class="req-id">REQ<br>004</div>
+        <div>
+          <div class="req-title">Photo Retouch — 1 FTE for Wk 22 (Peak)</div>
+          <div class="req-meta">Requestor: <strong>Richard dela Cruz (zrichade)</strong> · Submitted: May 4, 2026 · 6 hrs/day<br>Reason: John Philip at 92.5%, Gian at 87.5% — need buffer for peak week</div>
+          <div class="req-tags"><span class="badge b-yellow">P2 High</span><span class="badge b-gray">New</span></div>
+        </div>
+        <div class="req-status-col">
+          <div class="badge b-gray" style="font-size:11px; padding:4px 12px;">📥 SUBMITTED</div>
+          <div style="font-size:10px; color:#6b7280; margin-top:4px;">Awaiting assignment</div>
+          <div style="font-size:10px; color:#6b7280; margin-top:2px;">SLA: 47.2 hrs remaining</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW REQUEST FORM -->
+    <div class="section">
+      <div class="section-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        Submit New HC Request
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <div class="form-label">Requestor (POC) <span class="form-required">*</span></div>
+          <input type="text" class="form-input" value="Auto-populated from login" readonly style="background:#f9fafb; color:#6b7280;">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Process / Vertical <span class="form-required">*</span></div>
+          <select class="form-select"><option value="">— Select process —</option><option>Image QA</option><option>Photo Retouch</option><option>Background Removal</option><option>Color Correction</option><option>Metadata Audit</option><option>Content Validation</option></select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Headcount Needed <span class="form-required">*</span></div>
+          <input type="number" class="form-input" value="1" min="1">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Required Proficiency <span class="form-required">*</span></div>
+          <select class="form-select"><option>Any Level</option><option>Developing or above</option><option selected>Proficient or above</option><option>Expert only</option></select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Start Date <span class="form-required">*</span></div>
+          <input type="date" class="form-input">
+        </div>
+        <div class="form-group">
+          <div class="form-label">End Date <span class="form-required">*</span></div>
+          <input type="date" class="form-input">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Hours Per Day <span class="form-required">*</span></div>
+          <select class="form-select"><option>2 hrs/day</option><option>4 hrs/day</option><option selected>6 hrs/day</option><option>8 hrs/day (Full Time)</option></select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Priority <span class="form-required">*</span></div>
+          <select class="form-select"><option>P1 — Critical (SLA at risk)</option><option selected>P2 — High (within 48 hrs)</option><option>P3 — Standard (within 1 week)</option></select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:16px;">
+        <div class="form-label">Business Justification <span class="form-required">*</span></div>
+        <textarea class="form-textarea" placeholder="Describe why this headcount is needed. Include current bottleneck, SLA impact, and demand trend reference."></textarea>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:12px; align-items:center;">
+        <div style="padding:10px 24px; background:#2563eb; color:#fff; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">📤 Submit Request</div>
+        <div style="padding:10px 24px; background:#fff; color:#6b7280; border:1px solid #d1d5db; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">Save as Draft</div>
+        <label for="mtab-results" style="padding:10px 24px; background:#fff; color:#2563eb; border:1px solid #bfdbfe; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">🔍 Run Matchmaker First</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ROSTER TAB ===== -->
+  <div class="mtab-page mpage-roster">
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">ML Audits</div><div class="kpi-value text-blue">8</div><div class="kpi-sub">Avg util: 87.5% weighted</div></div>
+      <div class="kpi-card"><div class="kpi-label">ML Retouch</div><div class="kpi-value" style="color:#7c3aed;">8</div><div class="kpi-sub">Avg util: 81.0% weighted</div></div>
+      <div class="kpi-card"><div class="kpi-label">Leadership</div><div class="kpi-value text-orange">3</div><div class="kpi-sub">Avg util: 104.5% weighted ⚠️</div></div>
+      <div class="kpi-card"><div class="kpi-label">Expert-Level Staff</div><div class="kpi-value text-green">12</div><div class="kpi-sub">63% of total roster</div></div>
+    </div>
+    <div class="section">
+      <div class="section-title">👥 Complete Resource Roster</div>
+      <table>
+        <thead><tr><th>Name</th><th>Team</th><th>Level</th><th>Primary Process</th><th>Prof.</th><th>Secondary</th><th>Prof.</th><th>Wtd Util</th><th>Avail Hrs</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><strong>John Philip Capili</strong></td><td>ML Retouch</td><td>L3</td><td>Photo Retouch</td><td><span class="badge b-green">Expert</span></td><td>BG Removal</td><td><span class="badge b-blue">Proficient</span></td><td class="mono">92.5%</td><td class="mono">3.0</td><td><span class="badge b-yellow">🟡 High</span></td></tr>
+          <tr><td><strong>Gian Cuasay</strong></td><td>ML Retouch</td><td>L3</td><td>Photo Retouch</td><td><span class="badge b-blue">Proficient</span></td><td>Color Correction</td><td><span class="badge b-yellow">Developing</span></td><td class="mono">87.5%</td><td class="mono">5.0</td><td><span class="badge b-yellow">🟡 High</span></td></tr>
+          <tr><td><strong>Richard dela Cruz</strong></td><td>ML Retouch</td><td>L3</td><td>Photo Retouch</td><td><span class="badge b-green">Expert</span></td><td>Color Correction</td><td><span class="badge b-blue">Proficient</span></td><td class="mono">95.0%</td><td class="mono">2.0</td><td><span class="badge b-yellow">🟡 High</span></td></tr>
+          <tr><td><strong>Johndee Jove</strong></td><td>ML Retouch</td><td>L3</td><td>BG Removal</td><td><span class="badge b-green">Expert</span></td><td>Photo Retouch</td><td><span class="badge b-blue">Proficient</span></td><td class="mono">80.0%</td><td class="mono text-red">0</td><td><span class="badge b-red">🔴 Over</span></td></tr>
+          <tr><td><strong>Kyle Ernest Batac</strong></td><td>ML Retouch</td><td>L3</td><td>BG Removal</td><td><span class="badge b-blue">Proficient</span></td><td>Color Correction</td><td><span class="badge b-yellow">Developing</span></td><td class="mono text-blue">66.0%</td><td class="mono text-green">13.6</td><td><span class="badge b-blue">🔵 Avail</span></td></tr>
+          <tr><td><strong>Joshua Mayo</strong></td><td>ML Retouch</td><td>L3</td><td>Color Correction</td><td><span class="badge b-green">Expert</span></td><td>BG Removal</td><td><span class="badge b-blue">Proficient</span></td><td class="mono text-red">103.5%</td><td class="mono text-red">0</td><td><span class="badge b-red">🔴 Over</span></td></tr>
+          <tr><td><strong>Guiseppe Espejo</strong></td><td>ML Retouch</td><td>L3</td><td>BG Removal</td><td><span class="badge b-blue">Proficient</span></td><td>Photo Retouch</td><td><span class="badge b-yellow">Developing</span></td><td class="mono text-blue">68.0%</td><td class="mono text-green">12.8</td><td><span class="badge b-blue">🔵 Avail</span></td></tr>
+          <tr><td><strong>Danielle Aragon</strong></td><td>ML Retouch</td><td>L3</td><td>Photo Retouch</td><td><span class="badge b-yellow">Developing</span></td><td>BG Removal</td><td><span class="badge b-yellow">Developing</span></td><td class="mono text-blue">55.0%</td><td class="mono text-green">18.0</td><td><span class="badge b-blue">🔵 Avail</span></td></tr>
+          <tr><td><strong>Lian Nadado</strong></td><td>ML Audits</td><td>L4</td><td>Image QA</td><td><span class="badge b-green">Expert</span></td><td>Metadata Audit</td><td><span class="badge b-blue">Proficient</span></td><td class="mono">94.5%</td><td class="mono">2.2</td><td><span class="badge b-yellow">🟡 High</span></td></tr>
+          <tr><td><strong>Toby Vigal</strong></td><td>ML Audits</td><td>L4</td><td>Image QA</td><td><span class="badge b-blue">Proficient</span></td><td>Content Validation</td><td><span class="badge b-yellow">Developing</span></td><td class="mono">88.0%</td><td class="mono">4.8</td><td><span class="badge b-yellow">🟡 High</span></td></tr>
+          <tr><td><strong>Cienna G.</strong></td><td>ML Audits</td><td>L3</td><td>Image QA</td><td><span class="badge b-green">Expert</span></td><td>—</td><td>—</td><td class="mono text-red">98.5%</td><td class="mono">0.6</td><td><span class="badge b-red">🔴 Over</span></td></tr>
+          <tr><td><strong>Alex Babaran</strong></td><td>ML Audits</td><td>L4</td><td>Metadata Audit</td><td><span class="badge b-green">Expert</span></td><td>Image QA</td><td><span class="badge b-blue">Proficient</span></td><td class="mono text-green">80.0%</td><td class="mono text-green">8.0</td><td><span class="badge b-green">🟢 Optimal</span></td></tr>
+          <tr><td><strong>Aria Limos</strong></td><td>ML Audits</td><td>L4</td><td>Metadata Audit</td><td><span class="badge b-blue">Proficient</span></td><td>Content Validation</td><td><span class="badge b-yellow">Developing</span></td><td class="mono text-green">70.0%</td><td class="mono text-green">12.0</td><td><span class="badge b-green">🟢 Optimal</span></td></tr>
+          <tr><td><strong>Matthew Matibag</strong></td><td>ML Audits</td><td>L3</td><td>Content Validation</td><td><span class="badge b-blue">Proficient</span></td><td>Image QA</td><td><span class="badge b-yellow">Developing</span></td><td class="mono">86.3%</td><td class="mono">5.5</td><td><span class="badge b-yellow">🟡 High</span></td></tr>
+          <tr><td><strong>Jam Mercado</strong></td><td>ML Audits</td><td>L3</td><td>Content Validation</td><td><span class="badge b-green">Expert</span></td><td>Metadata Audit</td><td><span class="badge b-blue">Proficient</span></td><td class="mono text-red">112.1%</td><td class="mono text-red">0</td><td><span class="badge b-red">🔴 Over</span></td></tr>
+          <tr><td><strong>Isaiah Ang</strong></td><td>ML Audits</td><td>L3</td><td>Image QA</td><td><span class="badge b-yellow">Developing</span></td><td>Content Validation</td><td>—</td><td class="mono text-blue">62.5%</td><td class="mono text-green">15.0</td><td><span class="badge b-blue">🔵 Avail</span></td></tr>
+          <tr><td><strong>Ginny Mones</strong></td><td>Leadership</td><td>L4</td><td>Design Ops</td><td><span class="badge b-green">Expert</span></td><td>All Processes</td><td><span class="badge b-green">Expert</span></td><td class="mono text-red">109.3%</td><td class="mono text-red">0</td><td><span class="badge b-red">🔴 Over</span></td></tr>
+          <tr><td><strong>Soledad Lee</strong></td><td>Leadership</td><td>L4</td><td>Training & QA</td><td><span class="badge b-green">Expert</span></td><td>All Processes</td><td><span class="badge b-green">Expert</span></td><td class="mono text-red">103.5%</td><td class="mono text-red">0</td><td><span class="badge b-red">🔴 Over</span></td></tr>
+          <tr><td><strong>Jen Demir</strong></td><td>Leadership</td><td>L4</td><td>Workflow Mgmt</td><td><span class="badge b-green">Expert</span></td><td>All Processes</td><td><span class="badge b-green">Expert</span></td><td class="mono text-red">100.6%</td><td class="mono text-red">0</td><td><span class="badge b-red">🔴 Over</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== METHODOLOGY / LEGEND TAB ===== -->
+  <div class="mtab-page mpage-legend">
+    <div class="section">
+      <div class="section-title">📐 Scoring Methodology & Workflow</div>
+      <p style="font-size:12px; color:#6b7280; margin-bottom:16px;">How the Matchmaker ranks candidates and how requests flow through the system.</p>
+
+      <!-- SCORING FORMULA -->
+      <div class="panel-title" style="margin-top:0;">Match Score Formula (0–100)</div>
+      <div class="formula-block" style="margin-bottom:20px;">
+        <span class="formula-hl">Match Score</span> = Proficiency (0–35) + Availability (0–35) + Cross-Skill (0–20) + Proximity (0–10)<br><br>
+        <span class="formula-hl">Proficiency</span> = (skill_level / max_level) × 35 &nbsp; [Expert=35, Proficient=26, Developing=17]<br>
+        <span class="formula-hl">Availability</span> = ((100 - weighted_util) / 100) × 35 &nbsp; [capped at 0 if overloaded]<br>
+        <span class="formula-hl">Cross-Skill</span> = secondary_process_count × relevance_weight × 20<br>
+        <span class="formula-hl">Proximity</span> = same_manager: 10 · same_org: 7 · cross-org: 4
+      </div>
+
+      <!-- WORKFLOW PIPELINE -->
+      <div class="panel-title">Approval Workflow Pipeline</div>
+      <div class="pipeline">
+        <div class="pipe-step"><div class="pipe-circle c-gray">📥</div><div class="pipe-label" style="color:#6b7280;">Submitted</div><div class="pipe-desc">Request enters queue. Approver notified.</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step"><div class="pipe-circle c-yellow">🔍</div><div class="pipe-label" style="color:#d97706;">Under Review</div><div class="pipe-desc">SLA clock starts. P1=4h, P2=48h, P3=1wk.</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step"><div class="pipe-circle c-blue">✅</div><div class="pipe-label" style="color:#2563eb;">Approved</div><div class="pipe-desc">Resources matched & assigned.</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step"><div class="pipe-circle c-green">🚀</div><div class="pipe-label" style="color:#059669;">Deployed</div><div class="pipe-desc">Resources active. POC confirms.</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step"><div class="pipe-circle c-dark">📦</div><div class="pipe-label" style="color:#6b7280;">Closed</div><div class="pipe-desc">Auto-closes 3 days after end date.</div></div>
+      </div>
+      <div style="text-align:center; margin-bottom:20px;">
+        <span style="font-size:11px; padding:4px 12px; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; color:#991b1b;">❌ Rejected → returns to Requestor with reason (branches from Under Review)</span>
+      </div>
+
+      <!-- SLA & AUTOMATION RULES -->
+      <div class="panel-title">SLA Thresholds & Automation</div>
+      <div class="legend-grid">
+        <div class="legend-card">
+          <div class="icon">🚨</div>
+          <div class="title">SLA Breach Escalation</div>
+          <div class="desc">If request sits past SLA target → auto-escalate to Approver's manager with full context.</div>
+          <div class="rule">IF time_elapsed > SLA_target THEN escalate(approver.manager)</div>
+        </div>
+        <div class="legend-card">
+          <div class="icon">⚠️</div>
+          <div class="title">Capacity Conflict Detection</div>
+          <div class="desc">If deployment would push resource above 95% weighted util → flag for review before deployment.</div>
+          <div class="rule">IF resource.util + hours > 95% THEN flag("Conflict")</div>
+        </div>
+        <div class="legend-card">
+          <div class="icon">📦</div>
+          <div class="title">Auto-Close</div>
+          <div class="desc">Deployed requests auto-close 3 business days after end date if no further action.</div>
+          <div class="rule">IF status="Deployed" AND date > end + 3d THEN close()</div>
+        </div>
+        <div class="legend-card">
+          <div class="icon">📊</div>
+          <div class="title">Weekly Digest</div>
+          <div class="desc">Summary email every Monday — open requests, avg response time, SLA compliance, bottlenecks.</div>
+          <div class="rule">CRON: Monday 9AM → email(approvers, summary)</div>
+        </div>
+        <div class="legend-card">
+          <div class="icon">🔔</div>
+          <div class="title">Deployment Confirmation Nudge</div>
+          <div class="desc">If POC hasn't confirmed within 24 hrs of deployment → auto-nudge.</div>
+          <div class="rule">IF !poc_confirmed AND time > 24h THEN nudge(requestor)</div>
+        </div>
+        <div class="legend-card">
+          <div class="icon">🔄</div>
+          <div class="title">Demand Spike Auto-Alert</div>
+          <div class="desc">If forecast shows capacity breach within 2 weeks → auto-generate draft request.</div>
+          <div class="rule">IF forecast[+2wk] > capacity THEN draft_request()</div>
+        </div>
+      </div>
+
+      <!-- ROLE DEFINITIONS -->
+      <div class="panel-title" style="margin-top:20px;">Role Definitions</div>
+      <table>
+        <thead><tr><th>Role</th><th>Permissions</th><th>Examples</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Requestor (POC)</strong></td><td>Submit, edit (pre-approval), cancel, view status, confirm deployment</td><td>Lian, Toby, Matthew, Richard</td></tr>
+          <tr><td><strong style="color:#2563eb;">Approver</strong></td><td>Approve/reject, request info, reassign, override ranking, flag conflicts</td><td>Jen, Ginny</td></tr>
+          <tr><td><strong>Watcher</strong></td><td>View status, read comments, receive notifications (read-only)</td><td>Skip-levels, Soledad</td></tr>
+          <tr><td><strong style="color:#7c3aed;">Admin</strong></td><td>Full CRUD, configure SLA, manage roles, run reports, override workflow</td><td>Jen (demjeny)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- end page-matchmaker -->
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- PAGE: RESOURCE PLATFORM (Skills Heatmap + Capacity from orig)  -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="page page-platform">
+  <div class="screen-title">📊 Resource Platform</div>
+  <div class="screen-subtitle">Skills proficiency matrix, process risk analysis, and freelancer contract tracking.</div>
+
+  <div class="filter-bar">
+    <div class="filter-pill">Manager: All</div>
+    <div class="filter-pill">Shift: All</div>
+    <div class="filter-pill">Type: FTE + Freelancer</div>
+    <div class="filter-pill">Process: All</div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-label">Total Headcount</div><div class="kpi-value">23</div><div class="kpi-sub"><span class="text-blue">15 FTE</span> · <span class="text-orange">8 Freelancer</span></div></div>
+    <div class="kpi-card alert"><div class="kpi-label">Single-Point-of-Failure</div><div class="kpi-value text-red">2</div><div class="kpi-sub">⚠ DQ Quarantine · Image Removal</div><div class="kpi-delta neg">Processes with &lt;3 people at Prof 3+</div></div>
+    <div class="kpi-card warn"><div class="kpi-label">FL Contracts Expiring (30d)</div><div class="kpi-value text-orange">3</div><div class="kpi-sub">120 hrs/week at risk</div><div class="kpi-delta warn-text">Artist D (19d) · Artist H (7d) · Artist F (28d)</div></div>
+    <div class="kpi-card"><div class="kpi-label">Cross-Train Pipeline</div><div class="kpi-value">7</div><div class="kpi-sub">People moving toward Level 3</div><div class="kpi-delta pos">↑ 3 from last month</div></div>
+  </div>
+
+  <!-- HEATMAP -->
+  <div class="panel">
+    <div class="panel-title">Proficiency Matrix — Grouped by Manager → Employment Type</div>
+    <div class="heatmap-container">
+      <table class="heatmap">
+        <thead><tr><th class="row-head">Employee</th><th>Bouncer</th><th>False Pos</th><th>Ret-Batch</th><th>Ret-OD</th><th>CG-Cont</th><th>CG-Cx</th><th>DQ Quar</th><th>Img Rem</th></tr></thead>
+        <tbody>
+          <tr class="group-header"><td colspan="9">▸ Manager: Jen — FTE Team</td></tr>
+          <tr><td class="row-head">Emp 1 <span class="badge badge-fte">FTE</span> Day</td><td class="p4">4</td><td class="p3">3</td><td class="p0">0</td><td class="p0">0</td><td class="p1">1</td><td class="p0">0</td><td class="p2">2</td><td class="p1">1</td></tr>
+          <tr><td class="row-head">Emp 2 <span class="badge badge-fte">FTE</span> Day</td><td class="p3">3</td><td class="p2">2</td><td class="p4">4</td><td class="p3">3</td><td class="p0">0</td><td class="p0">0</td><td class="p1">1</td><td class="p0">0</td></tr>
+          <tr><td class="row-head">Emp 3 <span class="badge badge-fte">FTE</span> Mid</td><td class="p2">2</td><td class="p1">1</td><td class="p3">3</td><td class="p4">4</td><td class="p2">2</td><td class="p1">1</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr><td class="row-head">Emp 5 <span class="badge badge-fte">FTE</span> Night</td><td class="p1">1</td><td class="p1">1</td><td class="p2">2</td><td class="p2">2</td><td class="p3">3</td><td class="p2">2</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr><td class="row-head">SME-Anandh <span class="badge badge-fte">FTE</span> Day</td><td class="p4">4</td><td class="p4">4</td><td class="p2">2</td><td class="p1">1</td><td class="p0">0</td><td class="p0">0</td><td class="p3">3</td><td class="p3">3</td></tr>
+          <tr class="group-header"><td colspan="9">▸ Manager: Jen — Freelancer Team</td></tr>
+          <tr><td class="row-head">Artist A <span class="badge badge-fl">FL</span> Day</td><td class="p0">0</td><td class="p0">0</td><td class="p0">0</td><td class="p0">0</td><td class="p3">3</td><td class="p4">4</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr><td class="row-head">Artist B <span class="badge badge-fl">FL</span> Day</td><td class="p0">0</td><td class="p0">0</td><td class="p2">2</td><td class="p3">3</td><td class="p4">4</td><td class="p3">3</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr><td class="row-head">Artist C <span class="badge badge-fl">FL</span> Mid</td><td class="p0">0</td><td class="p0">0</td><td class="p3">3</td><td class="p4">4</td><td class="p2">2</td><td class="p1">1</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr class="group-header"><td colspan="9">▸ Manager: Mark — FTE Team</td></tr>
+          <tr><td class="row-head">Emp 6 <span class="badge badge-fte">FTE</span> Day</td><td class="p3">3</td><td class="p3">3</td><td class="p0">0</td><td class="p0">0</td><td class="p0">0</td><td class="p0">0</td><td class="p2">2</td><td class="p3">3</td></tr>
+          <tr><td class="row-head">Emp 7 <span class="badge badge-fte">FTE</span> Mid</td><td class="p4">4</td><td class="p3">3</td><td class="p1">1</td><td class="p0">0</td><td class="p0">0</td><td class="p0">0</td><td class="p3">3</td><td class="p2">2</td></tr>
+          <tr><td class="row-head">Emp 8 <span class="badge badge-fte">FTE</span> Night</td><td class="p2">2</td><td class="p2">2</td><td class="p3">3</td><td class="p3">3</td><td class="p1">1</td><td class="p0">0</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr><td class="row-head">SME-Avinash <span class="badge badge-fte">FTE</span> Day</td><td class="p1">1</td><td class="p0">0</td><td class="p4">4</td><td class="p4">4</td><td class="p2">2</td><td class="p1">1</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr class="group-header"><td colspan="9">▸ Manager: Mark — Freelancer Team</td></tr>
+          <tr><td class="row-head">Artist D <span class="badge badge-fl">FL</span> Night</td><td class="p0">0</td><td class="p0">0</td><td class="p1">1</td><td class="p2">2</td><td class="p3">3</td><td class="p3">3</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr><td class="row-head">Artist E <span class="badge badge-fl">FL</span> Day</td><td class="p2">2</td><td class="p1">1</td><td class="p0">0</td><td class="p0">0</td><td class="p4">4</td><td class="p4">4</td><td class="p0">0</td><td class="p0">0</td></tr>
+          <tr><td class="row-head">Artist F <span class="badge badge-fl">FL</span> Mid</td><td class="p0">0</td><td class="p0">0</td><td class="p4">4</td><td class="p3">3</td><td class="p1">1</td><td class="p0">0</td><td class="p0">0</td><td class="p0">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RISK + CONTRACT -->
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-title">Process Risk: FTE vs FL Deployable (Prof 2+)</div>
+      <div class="cap-bar-container"><div class="cap-bar-label"><span>Bouncer</span><span>9 / 3 min ✅</span></div><div class="cap-bar"><div class="fte-fill" style="width:53%"></div><div class="fl-fill" style="width:7%"></div><div class="req-line" style="left:20%"></div></div></div>
+      <div class="cap-bar-container"><div class="cap-bar-label"><span>False Positive</span><span>5 / 2 min ✅</span></div><div class="cap-bar"><div class="fte-fill" style="width:42%"></div><div class="fl-fill" style="width:0%"></div><div class="req-line" style="left:17%"></div></div></div>
+      <div class="cap-bar-container"><div class="cap-bar-label"><span>Retouch-Batch</span><span>10 / 3 min ✅</span></div><div class="cap-bar"><div class="fte-fill" style="width:40%"></div><div class="fl-fill" style="width:27%"></div><div class="req-line" style="left:20%"></div></div></div>
+      <div class="cap-bar-container"><div class="cap-bar-label"><span>ContentGen Cont</span><span>10 / 4 min ✅</span></div><div class="cap-bar"><div class="fte-fill" style="width:27%"></div><div class="fl-fill" style="width:40%"></div><div class="req-line" style="left:27%"></div></div></div>
+      <div class="cap-bar-container"><div class="cap-bar-label"><span class="text-orange">ContentGen Cx</span><span class="text-orange">7 / 3 min ⚠ FL-heavy</span></div><div class="cap-bar"><div class="fte-fill" style="width:13%"></div><div class="fl-fill" style="width:34%"></div><div class="req-line" style="left:20%"></div></div></div>
+      <div class="cap-bar-container"><div class="cap-bar-label"><span class="text-red">DQ Quarantine</span><span class="text-red">3 / 2 min ⚠ FTE-only</span></div><div class="cap-bar"><div class="fte-fill" style="width:20%"></div><div class="fl-fill" style="width:0%"></div><div class="req-line" style="left:13%"></div></div></div>
+      <div class="cap-bar-container"><div class="cap-bar-label"><span class="text-red">Image Removal</span><span class="text-red">2 / 2 min 🔴 Critical</span></div><div class="cap-bar"><div class="fte-fill" style="width:13%"></div><div class="fl-fill" style="width:0%"></div><div class="req-line" style="left:13%"></div></div></div>
+      <div style="font-size:10px;color:#6b7280;margin-top:8px;">■ Blue = FTE &nbsp; ■ Orange = FL &nbsp; │ Dark line = Min Required</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Freelancer Contract Tracker</div>
+      <table>
+        <thead><tr><th>Name</th><th>Process</th><th>Contract End</th><th>Days Left</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Artist H</td><td>CG / Retouch</td><td>May 08, 2026</td><td class="mono text-red fw-700">7d</td><td><span class="badge b-red">🔴 Critical</span></td></tr>
+          <tr><td>Artist D</td><td>CG Cx / Ret-OD</td><td>May 20, 2026</td><td class="mono text-orange fw-700">19d</td><td><span class="badge b-yellow">⚠ Expiring</span></td></tr>
+          <tr><td>Artist F</td><td>Retouch-Batch</td><td>May 29, 2026</td><td class="mono text-orange fw-700">28d</td><td><span class="badge b-yellow">⚠ Expiring</span></td></tr>
+          <tr><td>Artist A</td><td>CG-Cx / CG-Cont</td><td>Jun 15, 2026</td><td class="mono">45d</td><td><span class="badge b-green">✅ Active</span></td></tr>
+          <tr><td>Artist B</td><td>CG-Cont / Ret</td><td>Jul 15, 2026</td><td class="mono">75d</td><td><span class="badge b-green">✅ Active</span></td></tr>
+          <tr><td>Artist E</td><td>CG-Cx / CG-Cont</td><td>Sep 15, 2026</td><td class="mono">137d</td><td><span class="badge b-green">✅ Active</span></td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:12px;padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:11px;color:#991b1b;">
+        ⚠ <strong>Capacity Risk:</strong> 3 freelancers expiring in 30 days = 120 hrs/week capacity loss. Action needed by May 10.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- PAGE: SKILLS HEATMAP (placeholder for nav completeness)        -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="page page-heatmap">
+  <div class="screen-title">🗺 Skills Heatmap</div>
+  <div class="screen-subtitle">Detailed proficiency view — Who can do what, how well, and where are the gaps?</div>
+  <div class="panel" style="text-align:center; padding:60px 20px; color:#6b7280;">
+    <div style="font-size:48px; margin-bottom:12px;">🗺</div>
+    <div style="font-size:14px; font-weight:600; margin-bottom:4px;">Skills Heatmap — Full View</div>
+    <div style="font-size:12px;">This page will contain the expanded proficiency matrix with filtering by manager, shift, and process.<br>See <strong>Resource Platform</strong> for the current heatmap prototype.</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- PAGE: QUEUE COMMAND CENTER                                      -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="page page-queue">
+  <div class="screen-title">📡 Queue Command Center</div>
+  <div class="screen-subtitle">Real-time queue status, redeployment alerts, and shift coverage — Last Refresh: May 5, 2026 · 2:30 PM PHT</div>
+
+  <div class="queue-grid">
+    <div class="queue-card status-at-risk">
+      <div class="queue-name">ML Audits · Bouncer</div>
+      <div class="queue-depth">145</div>
+      <div class="queue-bar"><div class="queue-bar-fill yellow" style="width:65%"></div></div>
+      <div><span class="badge b-yellow">⚠ AT RISK</span></div>
+      <div class="queue-meta mt-12"><strong>In:</strong> 32/hr · <strong>Out:</strong> 28/hr<br><strong>ETA:</strong> 5.2 hrs · <strong>SLA:</strong> 8h ✅<br><strong>HC:</strong> 4 (<span class="text-blue">3 FTE</span> · <span class="text-orange">1 FL</span>)</div>
+    </div>
+    <div class="queue-card status-healthy">
+      <div class="queue-name">ML Audits · False Positive</div>
+      <div class="queue-depth">82</div>
+      <div class="queue-bar"><div class="queue-bar-fill green" style="width:40%"></div></div>
+      <div><span class="badge b-green">✅ HEALTHY</span></div>
+      <div class="queue-meta mt-12"><strong>In:</strong> 18/hr · <strong>Out:</strong> 20/hr<br><strong>ETA:</strong> 4.1 hrs · <strong>SLA:</strong> 6h ✅<br><strong>HC:</strong> 3 (<span class="text-blue">3 FTE</span>)</div>
+    </div>
+    <div class="queue-card status-dry">
+      <div class="queue-name">ML Retouch · Batch</div>
+      <div class="queue-depth">12</div>
+      <div class="queue-bar"><div class="queue-bar-fill red" style="width:5%"></div></div>
+      <div><span class="badge b-red">🔴 DRY</span></div>
+      <div class="queue-meta mt-12"><strong>In:</strong> 3/hr · <strong>Out:</strong> 30/hr<br><strong>ETA:</strong> 0.4 hrs<br><strong>HC:</strong> 3 (<span class="text-blue">2 FTE</span> · <span class="text-orange">1 FL</span>)<br><span class="text-red">⚠ 3 people idle</span></div>
+    </div>
+    <div class="queue-card status-overloaded">
+      <div class="queue-name">ContentGen · Cx (One-Time)</div>
+      <div class="queue-depth">340</div>
+      <div class="queue-bar"><div class="queue-bar-fill red" style="width:95%"></div></div>
+      <div><span class="badge b-red">🔴 OVERLOADED</span></div>
+      <div class="queue-meta mt-12"><strong>In:</strong> 45/hr · <strong>Out:</strong> 18/hr<br><strong>ETA:</strong> 12h · <strong>SLA:</strong> 8h 🔴<br><strong>HC:</strong> 2 (<span class="text-orange">2 FL</span>)<br><span class="text-red fw-700">⚠ ZERO FTE coverage</span></div>
+    </div>
+  </div>
+
+  <!-- ALERT -->
+  <div class="alert-box">
+    <div class="alert-header">🔴 ALERT: ContentGen Cx is OVERLOADED — SLA Breach in 2 hours</div>
+    <div class="alert-body">
+      Queue: 340 items · ETA: 12h · Current HC: 2 (0 FTE, 2 FL) · Need: +2 headcount at Prof 2+
+      <table class="rec-table">
+        <thead><tr><th>Priority</th><th>From Queue</th><th>Person</th><th>Prof</th><th>Type</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Retouch-Batch <span class="badge b-red">DRY</span></td><td>Emp 2</td><td class="mono">3</td><td><span class="badge badge-fte">FTE</span></td><td class="text-green">✅ Ready</td></tr>
+          <tr><td>2</td><td>Retouch-Batch <span class="badge b-red">DRY</span></td><td>Artist F</td><td class="mono">3</td><td><span class="badge badge-fl">FL</span></td><td class="text-orange">⚠ Check scope</td></tr>
+          <tr><td>3</td><td>ML Audits-FP <span class="badge b-green">HEALTHY</span></td><td>Emp 12</td><td class="mono">2</td><td><span class="badge badge-fte">FTE</span></td><td class="text-green">✅ Ready</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- PAGE: CAPACITY PLANNING                                         -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="page page-capacity">
+  <div class="screen-title">📈 Capacity Planning & Forecasting</div>
+  <div class="screen-subtitle">Are we staffed right for the next 2-4 weeks? Demand vs. Supply with contract runway visibility.</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-label">Total Weekly Capacity</div><div class="kpi-value">920<span style="font-size:14px;color:#6b7280"> hrs</span></div><div class="kpi-sub"><span class="text-blue">600 FTE</span> · <span class="text-orange">320 FL</span></div></div>
+    <div class="kpi-card warn"><div class="kpi-label">FL Capacity at Risk (30d)</div><div class="kpi-value text-orange">120<span style="font-size:14px"> hrs</span></div><div class="kpi-sub">3 contracts expiring</div><div class="kpi-delta warn-text">13% of total capacity at risk</div></div>
+    <div class="kpi-card"><div class="kpi-label">Idle Capacity Rate</div><div class="kpi-value">8.2<span style="font-size:14px">%</span></div><div class="kpi-delta pos">↓ from 12.1% last month</div></div>
+    <div class="kpi-card"><div class="kpi-label">Utilization Balance (σ)</div><div class="kpi-value">14<span style="font-size:14px">%</span></div><div class="kpi-delta pos">↓ from 22% (more balanced)</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">4-Week Demand vs. Supply Forecast</div>
+    <table>
+      <thead><tr><th>Week</th><th>Projected Volume</th><th>FTE Capacity</th><th>FL Capacity</th><th>Total Supply</th><th>Gap</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="fw-700">Week 19 (May 5-9)</td><td class="mono">4,200</td><td class="mono text-blue">600</td><td class="mono text-orange">320</td><td class="mono">920</td><td class="mono text-green">+120</td><td><span class="badge b-green">✅ OK</span></td></tr>
+        <tr><td class="fw-700">Week 20 (May 12-16)</td><td class="mono">4,500</td><td class="mono text-blue">600</td><td class="mono text-orange">280</td><td class="mono">880</td><td class="mono text-orange">+80</td><td><span class="badge b-yellow">⚠ Tight</span></td></tr>
+        <tr><td class="fw-700">Week 21 (May 19-23)</td><td class="mono">4,800</td><td class="mono text-blue">600</td><td class="mono text-orange">240</td><td class="mono">840</td><td class="mono text-red">-60</td><td><span class="badge b-red">🔴 Gap</span></td></tr>
+        <tr><td class="fw-700">Week 22 (May 26-30)</td><td class="mono">5,100</td><td class="mono text-blue">600</td><td class="mono text-orange">200</td><td class="mono">800</td><td class="mono text-red">-200</td><td><span class="badge b-red">🔴 Critical</span></td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:12px;padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:11px;color:#991b1b;">
+      ⚠ <strong>Action Required:</strong> Weeks 21-22 show capacity deficit. 3 FL contracts expiring + demand spike = 200 hrs/wk shortfall. Recommend: extend Artist D & F contracts + submit HC request for 2 FTEs via Resource Matchmaker.
+    </div>
+  </div>
+</div>
+
+  </main>
+</div><!-- end app-layout -->
+
+</body>
+</html>
